@@ -38,7 +38,7 @@ jobs:
       - name: Install Stylus toolchain
         run: |
           if ! command -v cargo-stylus &> /dev/null; then
-            cargo install cargo-stylus
+            cargo install cargo-stylus --locked
           fi
 
       - name: Install SEBI
