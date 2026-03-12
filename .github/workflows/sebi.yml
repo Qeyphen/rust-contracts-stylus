@@ -46,6 +46,14 @@ jobs:
           cargo build \
             --release \
             --target wasm32-unknown-unknown \
+            --workspace \
+            --exclude benches \
+            --exclude e2e \
+            --exclude e2e-proc \
+            --exclude openzeppelin-stylus \
+            --exclude openzeppelin-stylus-proc \
+            --exclude openzeppelin-crypto \
+            --exclude basic-script-example
           if [ ! -d target/wasm32-unknown-unknown/release ]; then
             echo "ERROR: no wasm artifacts produced"
             exit 1
