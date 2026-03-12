@@ -18,8 +18,6 @@ jobs:
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: wasm32-unknown-unknown
 
       - name: Install jq
         run: sudo apt-get update && sudo apt-get install -y jq
@@ -36,45 +34,38 @@ jobs:
             ${{ runner.os }}-cargo-sebi-
 
       - name: Install Stylus toolchain
-        run: |
-          if ! command -v cargo-stylus &> /dev/null; then
-            cargo install cargo-stylus --locked
-          fi
+        run: cargo install cargo-stylus
 
       - name: Install SEBI
-        run: |
-          if ! command -v sebi-cli &> /dev/null; then
-            cargo install --git https://github.com/qeyphen/sebi --bin sebi-cli
-          fi
+        run: cargo install --git https://github.com/qeyphen/sebi --bin sebi-cli
+
+      # ── Build Stylus contracts ───────────────────────────────
 
       - name: Build Stylus contracts
-        run: |
-          built=0
-          for manifest in examples/*/Cargo.toml examples/*/*/Cargo.toml; do
-            dir=$(dirname "$manifest")
-            echo "Building $dir..."
-            (cd "$dir" && cargo stylus build) && built=$((built + 1)) || echo "WARNING: build failed for $dir"
-          done
-          if [ "$built" -eq 0 ]; then
-            echo "ERROR: no contracts were built successfully"
-            exit 1
-          fi
+        run: cargo stylus build
 
-      # Run SEBI against every .wasm in target/
+      # ── Debug: show wasm files ───────────────────────────────
+
+      - name: List wasm artifacts
+        run: find . -name "*.wasm"
+
+      # ── Run SEBI analysis ────────────────────────────────────
 
       - name: Run SEBI analysis
         run: |
           mkdir -p reports
-          FAILED_NAMES=()
-          FAILED_DETAILS=()
 
-          mapfile -d '' wasm_files < <(find target -name "*.wasm" -print0)
-          if [ ${#wasm_files[@]} -eq 0 ]; then
-            echo "ERROR: no .wasm artifacts found in target/"
+          WASM_FILES=$(find . -name "*.wasm")
+
+          if [ -z "$WASM_FILES" ]; then
+            echo "No WASM artifacts found. Build likely failed."
             exit 1
           fi
 
-          for wasm in "${wasm_files[@]}"; do
+          FAILED_NAMES=()
+          FAILED_DETAILS=()
+
+          for wasm in $WASM_FILES; do
             name=$(basename "$wasm" .wasm)
 
             sebi-cli "$wasm" \
@@ -83,6 +74,7 @@ jobs:
               --commit "${{ github.sha }}" || true
 
             LEVEL=$(jq -r '.classification.level' "reports/${name}.json")
+
             RULES=$(jq -r '
               .rules.triggered
               | map("      \(.rule_id) [\(.severity)] \(.title)")
@@ -109,10 +101,12 @@ jobs:
 
           echo "SEBI gate failed. The following contracts were flagged:"
           echo ""
+
           for detail in "${FAILED_DETAILS[@]}"; do
             printf "  ✗ %b\n" "$detail"
             echo ""
           done
+
           exit 1
 
       - name: Upload SEBI reports
