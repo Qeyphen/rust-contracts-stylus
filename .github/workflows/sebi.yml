@@ -35,12 +35,6 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cargo-sebi-
 
-      - name: Install Stylus toolchain
-        run: |
-          if ! command -v cargo-stylus &> /dev/null; then
-            cargo install cargo-stylus --locked
-          fi
-
       - name: Install SEBI
         run: |
           if ! command -v sebi-cli &> /dev/null; then
@@ -49,14 +43,19 @@ jobs:
 
       - name: Build Stylus contracts
         run: |
-          built=0
-          for manifest in examples/*/Cargo.toml examples/*/*/Cargo.toml; do
-            dir=$(dirname "$manifest")
-            echo "Building $dir..."
-            (cd "$dir" && cargo stylus build) && built=$((built + 1)) || echo "WARNING: build failed for $dir"
-          done
-          if [ "$built" -eq 0 ]; then
-            echo "ERROR: no contracts were built successfully"
+          cargo build \
+            --release \
+            --target wasm32-unknown-unknown \
+            --workspace \
+            --exclude benches \
+            --exclude e2e \
+            --exclude e2e-proc \
+            --exclude openzeppelin-stylus \
+            --exclude openzeppelin-stylus-proc \
+            --exclude openzeppelin-crypto \
+            --exclude basic-script-example
+          if [ ! -d target/wasm32-unknown-unknown/release ]; then
+            echo "ERROR: no wasm artifacts produced"
             exit 1
           fi
 
@@ -68,7 +67,7 @@ jobs:
           FAILED_NAMES=()
           FAILED_DETAILS=()
 
-          mapfile -d '' wasm_files < <(find target -name "*.wasm" -print0)
+          mapfile -d '' wasm_files < <(find target/wasm32-unknown-unknown/release -maxdepth 1 -name "*.wasm" -not -name "*.d" -print0)
           if [ ${#wasm_files[@]} -eq 0 ]; then
             echo "ERROR: no .wasm artifacts found in target/"
             exit 1
