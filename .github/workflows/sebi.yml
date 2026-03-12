@@ -49,11 +49,16 @@ jobs:
 
       - name: Build Stylus contracts
         run: |
+          built=0
           for manifest in examples/*/Cargo.toml examples/*/*/Cargo.toml; do
             dir=$(dirname "$manifest")
             echo "Building $dir..."
-            cargo stylus build --release --manifest-path "$manifest" || true
+            (cd "$dir" && cargo stylus build) && built=$((built + 1)) || echo "WARNING: build failed for $dir"
           done
+          if [ "$built" -eq 0 ]; then
+            echo "ERROR: no contracts were built successfully"
+            exit 1
+          fi
 
       # Run SEBI against every .wasm in target/
 
@@ -63,7 +68,13 @@ jobs:
           FAILED_NAMES=()
           FAILED_DETAILS=()
 
-          for wasm in $(find target -name "*.wasm"); do
+          mapfile -d '' wasm_files < <(find target -name "*.wasm" -print0)
+          if [ ${#wasm_files[@]} -eq 0 ]; then
+            echo "ERROR: no .wasm artifacts found in target/"
+            exit 1
+          fi
+
+          for wasm in "${wasm_files[@]}"; do
             name=$(basename "$wasm" .wasm)
 
             sebi-cli "$wasm" \
