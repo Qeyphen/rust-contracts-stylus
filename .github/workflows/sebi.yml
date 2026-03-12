@@ -43,17 +43,29 @@ jobs:
 
       - name: Build Stylus contracts
         run: |
+          # Find all workspace crates that produce cdylib targets (deployable contracts)
+          PACKAGES=$(cargo metadata --format-version 1 --no-deps \
+            | jq -r '.packages[]
+              | select(.targets[] | .kind[] | . == "cdylib")
+              | .name' \
+            | sort -u)
+
+          if [ -z "$PACKAGES" ]; then
+            echo "ERROR: no cdylib crates found in workspace"
+            exit 1
+          fi
+
+          ARGS=""
+          for pkg in $PACKAGES; do
+            ARGS="$ARGS -p $pkg"
+            echo "  will build: $pkg"
+          done
+
           cargo build \
             --release \
             --target wasm32-unknown-unknown \
-            --workspace \
-            --exclude benches \
-            --exclude e2e \
-            --exclude e2e-proc \
-            --exclude openzeppelin-stylus \
-            --exclude openzeppelin-stylus-proc \
-            --exclude openzeppelin-crypto \
-            --exclude basic-script-example
+            $ARGS
+
           if [ ! -d target/wasm32-unknown-unknown/release ]; then
             echo "ERROR: no wasm artifacts produced"
             exit 1
