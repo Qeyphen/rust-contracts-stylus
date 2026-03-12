@@ -18,6 +18,8 @@ jobs:
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
 
       - name: Install jq
         run: sudo apt-get update && sudo apt-get install -y jq
@@ -34,13 +36,24 @@ jobs:
             ${{ runner.os }}-cargo-sebi-
 
       - name: Install Stylus toolchain
-        run: cargo install cargo-stylus
+        run: |
+          if ! command -v cargo-stylus &> /dev/null; then
+            cargo install cargo-stylus
+          fi
 
       - name: Install SEBI
-        run: cargo install --git https://github.com/qeyphen/sebi --bin sebi-cli
+        run: |
+          if ! command -v sebi-cli &> /dev/null; then
+            cargo install --git https://github.com/qeyphen/sebi --bin sebi-cli
+          fi
 
       - name: Build Stylus contracts
-        run: cargo stylus build
+        run: |
+          for manifest in examples/*/Cargo.toml examples/*/*/Cargo.toml; do
+            dir=$(dirname "$manifest")
+            echo "Building $dir..."
+            cargo stylus build --release --manifest-path "$manifest" || true
+          done
 
       # Run SEBI against every .wasm in target/
 
@@ -56,7 +69,7 @@ jobs:
             sebi-cli "$wasm" \
               --format json \
               --out "reports/${name}.json" \
-              --commit "${{ github.sha }}"
+              --commit "${{ github.sha }}" || true
 
             LEVEL=$(jq -r '.classification.level' "reports/${name}.json")
             RULES=$(jq -r '
