@@ -46,8 +46,6 @@ jobs:
           cargo build \
             --release \
             --target wasm32-unknown-unknown \
-            --workspace \
-            --exclude benches \
           if [ ! -d target/wasm32-unknown-unknown/release ]; then
             echo "ERROR: no wasm artifacts produced"
             exit 1
